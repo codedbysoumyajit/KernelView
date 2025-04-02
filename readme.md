@@ -15,7 +15,7 @@ KernelView is a modern and powerful system information tool built in Python. It 
 ## Installation
 ### Install directly from GitHub
 ```sh
-pip install git+https://github.com/Pheonix14/kernelview.git
+pip install git+https://github.com/Pheonix14/KernelView.git
 ```
 
 ### Run it
@@ -43,5 +43,5 @@ KernelView is released under the MIT License, allowing free use and modification
 Contributions are welcome! If you’d like to improve KernelView, feel free to fork the repository, submit issues, or open pull requests on GitHub.
 
 ## Contact
-For support or inquiries, reach out via [GitHub Issues](https://github.com/Pheonix14/kernelview).
+For support or inquiries, reach out via [GitHub Issues](https://github.com/Pheonix14/KernelView).
 

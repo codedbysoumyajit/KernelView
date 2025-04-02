@@ -23,7 +23,7 @@ HEADER_ART = rf"""
  |_|\_\___|_| |_||_\___|_| \_/ |_\___|\_/\_/ 
                                              
 
-{COLOR_RESET}{COLOR_ACCENT}  System Information Toolkit{COLOR_RESET}
+{COLOR_RESET}{COLOR_ACCENT} is a modern and powerful system information tool built in Python.{COLOR_RESET}
 """
 
 def get_kernel_info():
