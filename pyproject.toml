@@ -1,7 +1,22 @@
+# pyproject.toml
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "python-template"
-version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
-requires-python = ">=3.11"
-dependencies = []
+name = "kernelview"
+version = "1.0.0"
+description = "A system information tool with Debian-themed output"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.6"
+dependencies = [
+    "psutil>=5.0",
+    "colorama>=0.4.6",
+]
+
+[project.scripts]
+kernelview = "kernelview.cli:main"
