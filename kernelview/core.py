@@ -5,6 +5,7 @@ import socket
 import subprocess
 import time
 import datetime
+import re
 
 # Modern color scheme with better contrast
 COLOR_HEADER = "\033[38;5;196m"  # Bright red
@@ -16,14 +17,15 @@ COLOR_RESET = "\033[0m"
 
 # Compact ASCII art header
 HEADER_ART = rf"""
-{COLOR_HEADER}   
+{COLOR_HEADER}
+
   _  __                 ___   ___            
  | |/ /___ _ _ _ _  ___| \ \ / (_)_____ __ __
  | ' </ -_) '_| ' \/ -_) |\ V /| / -_) V  V /
  |_|\_\___|_| |_||_\___|_| \_/ |_\___|\_/\_/ 
-                                             
 
-{COLOR_RESET}{COLOR_ACCENT} is a modern and powerful system information tool built in Python.{COLOR_RESET}
+                                             
+{COLOR_RESET}{COLOR_ACCENT}  Is a Powerful System Information Tool{COLOR_RESET}
 """
 
 def get_kernel_info():
@@ -84,16 +86,33 @@ def get_cuda_version():
     except Exception:
         return "Not Installed"
 
+def get_directx_version():
+    try:
+        if platform.system() == "Windows":
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\DirectX") as key:
+                version = winreg.QueryValueEx(key, "Version")[0]
+                return f"DirectX {version}"
+        return "Not Windows"
+    except Exception:
+        return "Unknown"
+
 def get_graphics_framework():
     frameworks = {
         "Vulkan": "vulkaninfo | grep 'Vulkan Instance Version'",
-        "OpenGL": "glxinfo | grep 'OpenGL version'"
+        "OpenGL": "glxinfo | grep 'OpenGL version'",
+        "DirectX": get_directx_version()
     }
     installed = []
     for framework, cmd in frameworks.items():
         try:
-            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
-            installed.append(f"{framework}: {output.split(':')[-1].strip()}")
+            if isinstance(cmd, str):
+                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
+                installed.append(f"{framework}: {output.split(':')[-1].strip()}")
+            else:
+                result = cmd()
+                if result != "Not Windows":
+                    installed.append(result)
         except Exception:
             continue
     return ", ".join(installed) if installed else "None"
@@ -124,12 +143,15 @@ def get_open_ports():
     return ", ".join(open_ports[:5]) + ("..." if len(open_ports) > 5 else "") if open_ports else "None"
 
 def get_swap_memory():
-    swap = psutil.swap_memory()
-    total_swap = round(swap.total / (1024**3))
-    used_swap = round(swap.used / (1024**3))
-    free_swap = total_swap - used_swap
-    swap_usage = swap.percent
-    return total_swap, used_swap, free_swap, swap_usage
+    try:
+        swap = psutil.swap_memory()
+        total_swap = round(swap.total / (1024**3))
+        used_swap = round(swap.used / (1024**3))
+        free_swap = total_swap - used_swap
+        swap_usage = swap.percent
+        return total_swap, used_swap, free_swap, swap_usage
+    except Exception:
+        return 0, 0, 0, 0  # Return zeros if swap info not available
 
 def get_installed_languages():
     languages = {
@@ -223,8 +245,11 @@ def get_window_manager():
                 if "WAYLAND_DISPLAY" in os.environ:
                     return "Wayland"
                 # Try to detect X11 window managers
-                wm = subprocess.check_output("wmctrl -m | grep 'Name:'", shell=True).decode().split(':')[-1].strip()
-                return wm if wm else "Unknown"
+                try:
+                    wm = subprocess.check_output("wmctrl -m | grep 'Name:'", shell=True).decode().split(':')[-1].strip()
+                    return wm if wm else "Unknown"
+                except:
+                    return os.environ.get('XDG_CURRENT_DESKTOP', 'Unknown')
             else:
                 return "Headless"
         elif platform.system() == "Windows":
@@ -244,7 +269,6 @@ def get_system_info():
     
     info = {
         "System": {
-            "Hostname": socket.gethostname(),
             "OS": f"{platform.system()} {platform.release()}",
             "OS Version": platform.version(),
             "Kernel": get_kernel_info(),
@@ -273,6 +297,7 @@ def get_system_info():
             "Swap": f"{used_swap}/{total_swap}GB ({swap_usage}%)",
         },
         "Network": {
+            "Hostname": socket.gethostname(),
             "IP Address": get_ip_address(),
             "Open Ports": get_open_ports(),
         },

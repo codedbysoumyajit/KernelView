@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kernelview"
 version = "1.0.0"
-description = "A system information tool with Debian-themed output"
+description = "KernelView is a modern and powerful system information tool built in python."
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Soumyajit Das", email = "pheonix85+dev@proton.me"},
 ]
 readme = "README.md"
 license = {text = "MIT"}
@@ -16,6 +16,7 @@ requires-python = ">=3.6"
 dependencies = [
     "psutil>=5.0",
     "colorama>=0.4.6",
+    "setuptools>=59.6.0",
 ]
 
 [project.scripts]
