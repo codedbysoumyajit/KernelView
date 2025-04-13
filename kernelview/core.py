@@ -24,7 +24,7 @@ HEADER_ART = rf"""
  | ' </ -_) '_| ' \/ -_) |\ V /| / -_) V  V /
  |_|\_\___|_| |_||_\___|_| \_/ |_\___|\_/\_/ 
 
-
+                                             
 {COLOR_RESET}{COLOR_ACCENT}  Is a Powerful System Information Tool{COLOR_RESET}
 """
 
@@ -48,344 +48,398 @@ def get_kernel_info():
 def get_cpu_info():
     try:
         if platform.system() == "Windows":
-            cpu_info = platform.processor()
-            if "ARM" in cpu_info:
-                return cpu_info
-            # More detailed CPU info for Windows
+            # Try to get detailed ARM info on Windows
             try:
-                output = subprocess.check_output("wmic cpu get name", shell=True).decode().split("\n")[1].strip()
-                if output:
-                    return output
+                import wmi
+                w = wmi.WMI()
+                for processor in w.Win32_Processor():
+                    if "ARM" in processor.Architecture:
+                        return f"{processor.Name} ({processor.Architecture})"
             except:
                 pass
-            return cpu_info
+            return platform.processor()
+        
         elif platform.system() == "Linux":
+            # Check for ARM architecture first
             with open("/proc/cpuinfo") as f:
-                for line in f:
-                    if "model name" in line or "Processor" in line or "Hardware" in line:
-                        return line.split(": ")[-1].strip()
-                # For ARM CPUs
-                with open("/proc/cpuinfo") as f:
-                    for line in f:
-                        if "model name" not in line and ("Processor" in line or "Hardware" in line):
-                            return line.split(": ")[-1].strip()
+                cpuinfo = f.read()
+            
+            # ARM-specific detection
+            if "ARM" in platform.machine() or "aarch64" in platform.machine():
+                model_name = "Unknown ARM"
+                implementer = "Unknown"
+                part = "Unknown"
+                
+                # Try to get CPU implementer and architecture
+                for line in cpuinfo.split('\n'):
+                    if "model name" in line:
+                        model_name = line.split(": ")[-1].strip()
+                    elif "CPU implementer" in line:
+                        implementer = line.split(": ")[-1].strip()
+                    elif "CPU part" in line:
+                        part = line.split(": ")[-1].strip()
+                
+                # Map ARM implementer codes to names
+                implementer_map = {
+                    "0x41": "ARM",
+                    "0x42": "Broadcom",
+                    "0x43": "Cavium",
+                    "0x44": "DEC",
+                    "0x46": "Fujitsu",
+                    "0x48": "HiSilicon",
+                    "0x49": "Infineon",
+                    "0x4d": "Motorola/Freescale",
+                    "0x4e": "NVIDIA",
+                    "0x50": "APM",
+                    "0x51": "Qualcomm",
+                    "0x53": "Samsung",
+                    "0x56": "Marvell",
+                    "0x61": "Apple",
+                    "0x66": "Faraday",
+                    "0x69": "Intel",
+                }
+                
+                # Map ARM part numbers to core types
+                part_map = {
+                    "0xd03": "Cortex-A53",
+                    "0xd04": "Cortex-A35",
+                    "0xd05": "Cortex-A55",
+                    "0xd07": "Cortex-A57",
+                    "0xd08": "Cortex-A72",
+                    "0xd09": "Cortex-A73",
+                    "0xd0a": "Cortex-A75",
+                    "0xd0b": "Cortex-A76",
+                    "0xd0c": "Neoverse-N1",
+                    "0xd0d": "Cortex-A77",
+                    "0xd0e": "Cortex-A76AE",
+                    "0xd41": "Cortex-A78",
+                    "0xd42": "Cortex-A78AE",
+                    "0xd44": "Cortex-X1",
+                    "0xd46": "Cortex-A510",
+                    "0xd47": "Cortex-A710",
+                    "0xd48": "Cortex-X2",
+                }
+                
+                # Format the output
+                vendor = implementer_map.get(implementer, implementer)
+                core = part_map.get(part, part)
+                
+                if model_name != "Unknown ARM":
+                    return model_name
+                elif vendor != "Unknown" or core != "Unknown":
+                    return f"{vendor} {core}"
+                else:
+                    return "ARM Processor"
+            
+            # Standard x86 detection
+            for line in cpuinfo.split('\n'):
+                if "model name" in line:
+                    return line.split(": ")[-1].strip()
+            return platform.machine()
+        
         elif platform.system() == "Darwin":
-            output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).strip().decode()
-            if not output:  # For Apple Silicon
-                output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.core_count"]).strip().decode()
-                return f"Apple M-series ({output} cores)"
-            return output
-    except Exception:
-        return "Unknown"
-    return "Unknown"
+            # Apple Silicon detection
+            if platform.machine() == "arm64":
+                try:
+                    # Get Apple-specific processor info
+                    output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).strip().decode()
+                    if output:
+                        return output
+                    
+                    # Fallback to generic ARM info
+                    output = subprocess.check_output(["sysctl", "-n", "hw.model"]).strip().decode()
+                    return f"Apple {output}"
+                except:
+                    return "Apple Silicon (ARM)"
+            else:
+                return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).strip().decode()
+        
+        else:
+            # Other UNIX-like systems
+            try:
+                if "ARM" in platform.machine():
+                    return f"ARM Processor ({platform.machine()})"
+                return subprocess.check_output(["uname", "-p"]).decode().strip()
+            except:
+                return platform.machine()
+    
+    except Exception as e:
+        return f"Unknown ({platform.machine()})"
 
 def get_gpu_info():
     try:
         if platform.system() == "Windows":
-            try:
-                # Try NVIDIA first
-                output = subprocess.check_output("nvidia-smi --query-gpu=name --format=csv,noheader", shell=True).decode().strip()
-                if output:
-                    return output.split("\n")[0]
-            except:
-                pass
-
-            try:
-                # Try AMD
-                output = subprocess.check_output("wmic path win32_videocontroller where 'name like \"%AMD%\"' get name", shell=True).decode().strip()
-                if output and "Name" not in output:
-                    return output.split("\n")[1].strip()
-            except:
-                pass
-
-            try:
-                # Try Intel
-                output = subprocess.check_output("wmic path win32_videocontroller where 'name like \"%Intel%\"' get name", shell=True).decode().strip()
-                if output and "Name" not in output:
-                    return output.split("\n")[1].strip()
-            except:
-                pass
-
-            # Fallback to generic method
-            return subprocess.check_output("wmic path win32_videocontroller get name", shell=True).decode().split("\n")[1].strip()
-
+            return subprocess.check_output("wmic path win32_videocontroller get caption", shell=True).decode().split("\n")[1].strip()
         elif platform.system() == "Linux":
-            try:
-                # Try NVIDIA
-                output = subprocess.check_output("lspci | grep -i 'NVIDIA'", shell=True).decode().strip()
-                if output:
-                    return output.split(": ")[-1].strip()
-            except:
-                pass
-
-            try:
-                # Try AMD
-                output = subprocess.check_output("lspci | grep -i 'AMD'", shell=True).decode().strip()
-                if output:
-                    return output.split(": ")[-1].strip()
-            except:
-                pass
-
-            try:
-                # Try Intel
-                output = subprocess.check_output("lspci | grep -i 'Intel'", shell=True).decode().strip()
-                if output:
-                    return output.split(": ")[-1].strip()
-            except:
-                pass
-
-            # Fallback to generic VGA
             return subprocess.check_output("lspci | grep -i 'VGA\\|3D\\|Display'", shell=True).decode().split(": ")[-1].strip()
-
         elif platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output("system_profiler SPDisplaysDataType | grep 'Chipset Model'", shell=True).decode().strip()
-                if output:
-                    return output.split(": ")[-1].strip()
-            except:
-                return "Apple GPU"
+            return subprocess.check_output("system_profiler SPDisplaysDataType | grep 'Chipset Model'", shell=True).decode().split(": ")[-1].strip()
     except Exception:
         return "Unknown"
 
 def get_vram_info():
     try:
+        # Try NVIDIA first
+        try:
+            output = subprocess.check_output("nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv,noheader,nounits", shell=True).decode().strip()
+            if output:
+                total_vram, used_vram, free_vram = map(int, output.split(','))
+                vram_usage = (used_vram / total_vram) * 100 if total_vram > 0 else 0
+                return total_vram, used_vram, free_vram, round(vram_usage, 1)
+        except:
+            pass
+        
+        # Try AMD on Linux (using radeontop)
+        if platform.system() == "Linux":
+            try:
+                # First try to get total VRAM
+                total_vram = 0
+                try:
+                    output = subprocess.check_output("lspci -v -s $(lspci | grep VGA | cut -d' ' -f1)", shell=True).decode()
+                    match = re.search(r'Memory.*?(\d+)MB', output)
+                    if match:
+                        total_vram = int(match.group(1))
+                except:
+                    pass
+                
+                # Try to get current usage via radeontop
+                if total_vram > 0:
+                    try:
+                        # Run radeontop in snapshot mode (-1) and get vram usage
+                        output = subprocess.check_output("radeontop -d - -l 1 | grep vram", shell=True).decode()
+                        match = re.search(r'vram\s+(\d+)/(\d+)MB', output)
+                        if match:
+                            used_vram = int(match.group(1))
+                            total_vram = int(match.group(2))  # Use detected total from radeontop
+                            vram_usage = (used_vram / total_vram) * 100
+                            return total_vram, used_vram, total_vram - used_vram, round(vram_usage, 1)
+                    except:
+                        pass
+                
+                if total_vram > 0:
+                    return total_vram, None, None, None
+            except:
+                pass
+        
+        # Try Intel on Linux
+        if platform.system() == "Linux":
+            try:
+                # Check for Intel GPU
+                output = subprocess.check_output("lspci -v -s $(lspci | grep VGA | cut -d' ' -f1)", shell=True).decode()
+                if "Intel" in output:
+                    # Try to get VRAM info from intel_gpu_top (needs root)
+                    try:
+                        output = subprocess.check_output("sudo intel_gpu_top -l 1 -o -", shell=True).decode()
+                        match = re.search(r'VRAM:\s+(\d+\.\d+)%', output)
+                        if match:
+                            vram_usage = float(match.group(1))
+                            # Intel shares memory, so we'll report usage percentage only
+                            return None, None, None, round(vram_usage, 1)
+                    except:
+                        pass
+            except:
+                pass
+        
+        # Try Windows (all GPUs)
         if platform.system() == "Windows":
             try:
-                # NVIDIA
-                output = subprocess.check_output("nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv,noheader,nounits", shell=True).decode().strip()
-                if output:
-                    total_vram, used_vram, free_vram = map(int, output.split(','))
-                    vram_usage = (used_vram / total_vram) * 100 if total_vram > 0 else 0
-                    return total_vram, used_vram, free_vram, round(vram_usage, 1)
+                import wmi
+                w = wmi.WMI()
+                for gpu in w.Win32_VideoController():
+                    if gpu.AdapterRAM:
+                        total_vram = int(gpu.AdapterRAM) // (1024**2)
+                        # Windows doesn't provide used VRAM easily
+                        return total_vram, None, None, None
             except:
                 pass
-
+        
+        # Try macOS
+        if platform.system() == "Darwin":
             try:
-                # AMD - requires AMD Adrenalin software installed
-                output = subprocess.check_output("clinfo", shell=True).decode()
-                if "CL_DEVICE_GLOBAL_MEM_SIZE" in output:
-                    for line in output.split("\n"):
-                        if "CL_DEVICE_GLOBAL_MEM_SIZE" in line:
-                            total_vram = int(line.split()[-1]) // (1024**2)
-                            # AMD doesn't provide used/free easily, so we'll just show total
-                            return total_vram, None, None, None
-            except:
-                pass
-
-            try:
-                # Intel - approximate from shared memory
-                output = subprocess.check_output("wmic path win32_videocontroller get AdapterRAM", shell=True).decode().strip()
-                if output and "AdapterRAM" not in output:
-                    total_vram = int(output.split("\n")[1].strip()) // (1024**2)
+                output = subprocess.check_output("system_profiler SPDisplaysDataType", shell=True).decode()
+                match = re.search(r'VRAM \(Total\):\s+(\d+)', output)
+                if match:
+                    total_vram = int(match.group(1))
                     return total_vram, None, None, None
             except:
                 pass
-
-        elif platform.system() == "Linux":
-            try:
-                # NVIDIA
-                output = subprocess.check_output("nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv,noheader,nounits", shell=True).decode().strip()
-                if output:
-                    total_vram, used_vram, free_vram = map(int, output.split(','))
-                    vram_usage = (used_vram / total_vram) * 100 if total_vram > 0 else 0
-                    return total_vram, used_vram, free_vram, round(vram_usage, 1)
-            except:
-                pass
-
-            try:
-                # AMD - using ROCm
-                output = subprocess.check_output("rocm-smi --showmeminfo vram --csv", shell=True).decode()
-                if "vram" in output:
-                    total_line = [line for line in output.split("\n") if "Total Memory" in line][0]
-                    used_line = [line for line in output.split("\n") if "Used Memory" in line][0]
-                    total_vram = int(total_line.split(",")[1].strip())
-                    used_vram = int(used_line.split(",")[1].strip())
-                    free_vram = total_vram - used_vram
-                    vram_usage = (used_vram / total_vram) * 100 if total_vram > 0 else 0
-                    return total_vram, used_vram, free_vram, round(vram_usage, 1)
-            except:
-                pass
-
-            try:
-                # Intel - using intel_gpu_top needs root
-                output = subprocess.check_output("sudo intel_gpu_top -o -", shell=True).decode()
-                if "GPU" in output:
-                    for line in output.split("\n"):
-                        if "VRAM" in line:
-                            parts = line.split()
-                            total_vram = int(parts[1])
-                            used_vram = int(parts[2])
-                            free_vram = total_vram - used_vram
-                            vram_usage = (used_vram / total_vram) * 100 if total_vram > 0 else 0
-                            return total_vram, used_vram, free_vram, round(vram_usage, 1)
-            except:
-                pass
-
-        elif platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output("system_profiler SPDisplaysDataType | grep 'VRAM'", shell=True).decode()
-                if output:
-                    total_vram = int(output.split(":")[1].strip().split(" ")[0])
-                    return total_vram, None, None, None
-            except:
-                pass
-
-    except Exception:
-        pass
-
-    return None, None, None, None
+        
+        return None, None, None, None
+    except Exception as e:
+        return None, None, None, None
 
 def get_cuda_version():
     try:
-        output = subprocess.check_output("nvcc --version", shell=True).decode()
-        if "release" in output:
-            return output.split("release ")[-1].split(",")[0].strip()
+        return subprocess.check_output("nvcc --version", shell=True).decode().split("release ")[-1].split(",")[0].strip()
     except Exception:
-        pass
+        return "Not Installed"
 
-    # Check for CUDA in Windows registry
-    if platform.system() == "Windows":
+def get_opencl_info():
+    try:
+        if platform.system() == "Windows":
+            try:
+                import wmi
+                w = wmi.WMI()
+                opencl_devices = []
+                for gpu in w.Win32_VideoController():
+                    if "OpenCL" in gpu.Description:
+                        opencl_devices.append(gpu.Description)
+                if opencl_devices:
+                    return ", ".join(opencl_devices)
+            except:
+                pass
+
+        # Try using clinfo if available
         try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\NVIDIA Corporation\CUDA") as key:
-                version = winreg.QueryValueEx(key, "Version")[0]
-                return f"CUDA {version}"
+            output = subprocess.check_output("clinfo", shell=True, stderr=subprocess.STDOUT).decode()
+            devices = []
+            for line in output.split('\n'):
+                if "Device Name" in line:
+                    devices.append(line.split("Device Name")[-1].strip())
+            if devices:
+                return ", ".join(devices[:3]) + ("..." if len(devices) > 3 else "")
         except:
             pass
 
-    return "Not Installed"
+        # Try alternative methods on Linux/macOS
+        try:
+            if platform.system() == "Linux":
+                output = subprocess.check_output("ls -l /etc/OpenCL/vendors", shell=True).decode()
+                if "libnvidia" in output:
+                    return "NVIDIA OpenCL"
+                elif "intel" in output.lower():
+                    return "Intel OpenCL"
+                elif "amd" in output.lower():
+                    return "AMD OpenCL"
+            elif platform.system() == "Darwin":
+                return "Apple OpenCL"  # macOS has built-in OpenCL support
+        except:
+            pass
+
+        return "Not Detected"
+    except Exception:
+        return "Unknown"
+
+def get_vulkan_info():
+    try:
+        vulkan_info = []
+
+        # Try vulkaninfo if available
+        try:
+            output = subprocess.check_output("vulkaninfo --summary", shell=True, stderr=subprocess.STDOUT).decode()
+            # Extract GPU information
+            gpu_info = []
+            in_gpu_section = False
+            for line in output.split('\n'):
+                if "GPU id:" in line:
+                    in_gpu_section = True
+                    gpu_info.append(line.split(":")[-1].strip())
+                elif in_gpu_section and "GPU name:" in line:
+                    gpu_info.append(line.split(":")[-1].strip())
+                    in_gpu_section = False
+
+            if gpu_info:
+                vulkan_info.append("Devices: " + ", ".join(gpu_info))
+
+            # Extract Vulkan version
+            version_match = re.search(r"Vulkan Instance Version:\s+(\d+\.\d+\.\d+)", output)
+            if version_match:
+                vulkan_info.append(f"Version: {version_match.group(1)}")
+        except:
+            pass
+
+        # Fallback for Windows
+        if platform.system() == "Windows" and not vulkan_info:
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Khronos\Vulkan") as key:
+                    version = winreg.QueryValueEx(key, "Version")[0]
+                    vulkan_info.append(f"Version: {version}")
+            except:
+                pass
+
+        # Fallback for Linux
+        if platform.system() == "Linux" and not vulkan_info:
+            try:
+                icd_files = subprocess.check_output("ls /usr/share/vulkan/icd.d/", shell=True).decode()
+                if "nvidia" in icd_files.lower():
+                    vulkan_info.append("NVIDIA Vulkan")
+                if "radeon" in icd_files.lower() or "amd" in icd_files.lower():
+                    vulkan_info.append("AMD Vulkan")
+                if "intel" in icd_files.lower():
+                    vulkan_info.append("Intel Vulkan")
+            except:
+                pass
+
+        return ", ".join(vulkan_info) if vulkan_info else "Not Installed"
+    except Exception:
+        return "Unknown"
 
 def get_directx_version():
     try:
         if platform.system() == "Windows":
-            import winreg
             try:
-                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\DirectX") as key:
-                    version = winreg.QueryValueEx(key, "Version")[0]
-                    return f"DirectX {version}"
-            except:
-                # Alternative method for newer Windows versions
+                import winreg
+                # Check for DirectX 12
                 try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\DirectX") as key:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\DirectX") as key:
                         version = winreg.QueryValueEx(key, "Version")[0]
                         return f"DirectX {version}"
                 except:
-                    # Fallback to system file version
-                    try:
-                        dxdiag = subprocess.check_output("dxdiag /t dxdiag.txt", shell=True).decode()
-                        with open("dxdiag.txt", "r") as f:
-                            content = f.read()
-                            match = re.search(r"DirectX Version: ([\d.]+)", content)
-                            if match:
-                                return f"DirectX {match.group(1)}"
-                    except:
-                        pass
-        return "Not Windows"
+                    pass
+
+                # Check for DirectX 11
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Direct3D") as key:
+                        version = winreg.QueryValueEx(key, "Version")[0]
+                        return f"DirectX {version}"
+                except:
+                    pass
+
+                # Fallback method using dxdiag
+                try:
+                    output = subprocess.check_output("dxdiag /t dxdiag_output.txt", shell=True)
+                    with open("dxdiag_output.txt", "r") as f:
+                        content = f.read()
+                        match = re.search(r"DirectX Version:\s+DirectX (\d+)", content)
+                        if match:
+                            return f"DirectX {match.group(1)}"
+                except:
+                    pass
+
+                # Final fallback
+                return "DirectX (version unknown)"
+            except:
+                return "DirectX (detection failed)"
+        else:
+            return "Windows Only"
     except Exception:
         return "Unknown"
 
 def get_graphics_framework():
-    frameworks = []
+    frameworks = {
+        "Vulkan": get_vulkan_info(),
+        "DirectX": get_directx_version(),
+        "OpenCL": get_opencl_info()
+    }
 
-    # Windows specific
-    if platform.system() == "Windows":
-        # DirectX
-        dx_version = get_directx_version()
-        if "Unknown" not in dx_version and "Not Windows" not in dx_version:
-            frameworks.append(dx_version)
+    # Format the output
+    result = []
+    for name, value in frameworks.items():
+        if value and value != "Unknown" and value != "Not Detected" and value != "Windows Only":
+            result.append(f"{name}: {value}")
 
-        # Vulkan
-        try:
-            output = subprocess.check_output("vulkaninfo --summary", shell=True).decode()
-            if "Vulkan Instance Version" in output:
-                version = output.split("Vulkan Instance Version: ")[1].split("\n")[0].strip()
-                frameworks.append(f"Vulkan {version}")
-        except:
-            pass
-
-        # OpenGL
-        try:
-            import ctypes
-            opengl = ctypes.windll.opengl32
-            version = ctypes.c_char_p()
-            opengl.glGetString.restype = ctypes.c_char_p
-            version = opengl.glGetString(7938)  # GL_VERSION
-            if version:
-                frameworks.append(f"OpenGL {version.decode().split()[0]}")
-        except:
-            pass
-
-    # Linux/macOS specific
-    else:
-        # Vulkan
-        try:
-            output = subprocess.check_output("vulkaninfo | grep 'Vulkan Instance Version'", shell=True).decode().strip()
-            if output:
-                frameworks.append(f"Vulkan: {output.split(':')[-1].strip()}")
-        except:
-            pass
-
-        # OpenGL
-        try:
-            output = subprocess.check_output("glxinfo | grep 'OpenGL version'", shell=True).decode().strip()
-            if output:
-                frameworks.append(f"OpenGL: {output.split(':')[-1].strip()}")
-        except:
-            pass
-
-    # Metal for macOS
-    if platform.system() == "Darwin":
-        frameworks.append("Metal")
-
-    return ", ".join(frameworks) if frameworks else "None"
+    return ", ".join(result) if result else "None detected"
 
 def get_cpu_temperature():
     try:
         if platform.system() == "Windows":
-            try:
-                output = subprocess.check_output("wmic /namespace:\\\\root\\wmi PATH MSAcpi_ThermalZoneTemperature get CurrentTemperature", shell=True).decode()
-                if "CurrentTemperature" in output:
-                    temp_kelvin = int(output.split("\n")[1].strip()) / 10.0
-                    temp_celsius = temp_kelvin - 273.15
-                    return f"{temp_celsius:.1f}°C"
-            except:
-                return "Use HWMonitor"
+            return "Use HWMonitor"
         elif platform.system() == "Linux":
-            # Try multiple common temperature sources
-            sources = [
-                "sensors | grep 'Package id 0'",
-                "sensors | grep 'Tdie'",
-                "sensors | grep 'CPU Temperature'",
-                "cat /sys/class/thermal/thermal_zone*/temp"
-            ]
-            for source in sources:
-                try:
-                    if "cat" in source:
-                        temps = []
-                        for zone in os.listdir("/sys/class/thermal/"):
-                            if zone.startswith("thermal_zone"):
-                                with open(f"/sys/class/thermal/{zone}/type") as f:
-                                    if "cpu" in f.read().lower():
-                                        with open(f"/sys/class/thermal/{zone}/temp") as temp_file:
-                                            temp = int(temp_file.read().strip()) / 1000.0
-                                            temps.append(temp)
-                        if temps:
-                            return f"{max(temps):.1f}°C"
-                    else:
-                        output = subprocess.check_output(source, shell=True).decode()
-                        if output:
-                            temp = output.split('+')[-1].split('°')[0].strip()
-                            return f"{temp}°C"
-                except:
-                    continue
-            return "Unknown"
+            temp = subprocess.check_output("sensors | grep 'Package id 0'", shell=True).decode().split('+')[-1].split('°')[0].strip()
+            return f"{temp}°C"
         elif platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(["osascript", "-e", "tell application \"iStat Menus\" to get temperature of first sensor"], shell=False).decode().strip()
-                if output:
-                    return f"{output}°C"
-            except:
-                return "Use iStat Menus"
+            return "Use iStat Menus"
     except Exception:
         return "Unknown"
 
@@ -405,9 +459,9 @@ def get_open_ports():
 def get_swap_memory():
     try:
         swap = psutil.swap_memory()
-        total_swap = round(swap.total / (1024**3), 1)
-        used_swap = round(swap.used / (1024**3), 1)
-        free_swap = round(total_swap - used_swap, 1)
+        total_swap = round(swap.total / (1024**3))
+        used_swap = round(swap.used / (1024**3))
+        free_swap = total_swap - used_swap
         swap_usage = swap.percent
         return total_swap, used_swap, free_swap, swap_usage
     except Exception:
@@ -430,9 +484,8 @@ def get_installed_languages():
     installed = []
     for lang, cmd in languages.items():
         try:
-            version_output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
-            if version_output:
-                installed.append(lang)
+            subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            installed.append(lang)
         except Exception:
             continue
     return ", ".join(installed[:5]) + ("..." if len(installed) > 5 else "") if installed else "None"
@@ -477,7 +530,7 @@ def get_terminal():
             # Try to get terminal from environment variables
             term = os.environ.get('TERM', 'Unknown')
             term_program = os.environ.get('TERM_PROGRAM', '')
-
+            
             # For modern terminal emulators
             if term_program:
                 return term_program
@@ -490,20 +543,7 @@ def get_terminal():
             else:
                 return term
         elif platform.system() == "Windows":
-            # Check Windows Terminal first
-            if os.environ.get('WT_SESSION'):
-                return "Windows Terminal"
-            # Check for ConEmu
-            if os.environ.get('ConEmuPID'):
-                return "ConEmu"
-            # Check for other terminals
-            try:
-                parent_process = psutil.Process(os.getppid()).name()
-                if parent_process.endswith('.exe'):
-                    parent_process = parent_process[:-4]
-                return parent_process
-            except:
-                return "cmd.exe"
+            return os.environ.get('WT_SESSION', 'Windows Terminal') or "cmd.exe"
         elif platform.system() == "Darwin":
             return os.environ.get('TERM_PROGRAM', 'Terminal')
         else:
@@ -521,15 +561,9 @@ def get_window_manager():
                 # Try to detect X11 window managers
                 try:
                     wm = subprocess.check_output("wmctrl -m | grep 'Name:'", shell=True).decode().split(':')[-1].strip()
-                    if wm:
-                        return wm
+                    return wm if wm else "Unknown"
                 except:
-                    pass
-                # Try to detect from environment variables
-                desktop = os.environ.get('XDG_CURRENT_DESKTOP', '')
-                if desktop:
-                    return desktop.split(':')[-1]
-                return "Unknown"
+                    return os.environ.get('XDG_CURRENT_DESKTOP', 'Unknown')
             else:
                 return "Headless"
         elif platform.system() == "Windows":
@@ -541,44 +575,19 @@ def get_window_manager():
     except Exception:
         return "Unknown"
 
-def get_shell():
-    try:
-        if platform.system() == "Windows":
-            # Check for PowerShell
-            if "PSModulePath" in os.environ:
-                return "PowerShell"
-            # Check for Git Bash
-            if "SHELL" in os.environ and "git" in os.environ["SHELL"].lower():
-                return "Git Bash"
-            # Default to cmd
-            return "cmd.exe"
-        else:
-            shell = os.environ.get('SHELL', 'Unknown')
-            return os.path.basename(shell)
-    except Exception:
-        return "Unknown"
-
 def get_system_info():
     total_vram, used_vram, free_vram, vram_usage = get_vram_info()
     total_swap, used_swap, free_swap, swap_usage = get_swap_memory()
     disk_usage = psutil.disk_usage('/')
     ram = psutil.virtual_memory()
-
-    # Format VRAM information
-    vram_display = "Unknown"
-    if total_vram is not None:
-        if used_vram is not None and vram_usage is not None:
-            vram_display = f"{used_vram}/{total_vram}MB ({vram_usage}%)"
-        else:
-            vram_display = f"{total_vram}MB (total)"
-
+    
     info = {
         "System": {
             "OS": f"{platform.system()} {platform.release()}",
             "OS Version": platform.version(),
             "Kernel": get_kernel_info(),
             "Uptime": str(datetime.timedelta(seconds=int(time.time() - psutil.boot_time()))),
-            "Shell": get_shell(),
+            "Shell": os.path.basename(os.environ.get('SHELL', 'Unknown')),
             "Python": platform.python_version(),
             "Window Manager": get_window_manager(),
         },
@@ -594,11 +603,11 @@ def get_system_info():
             "CPU Usage": f"{psutil.cpu_percent(interval=1)}%",
             "CPU Temp": get_cpu_temperature(),
             "GPU": get_gpu_info(),
-            "VRAM": vram_display,
-            "RAM": f"{round(ram.used/(1024**3), 1)}/{round(ram.total/(1024**3), 1)}GB ({ram.percent}%)",
+            "VRAM": f"{used_vram}/{total_vram}MB ({vram_usage}%)" if total_vram else "Unknown",
+            "RAM": f"{round(ram.used/(1024**3))}/{round(ram.total/(1024**3))}GB ({ram.percent}%)",
         },
         "Storage": {
-            "Disk": f"{round(disk_usage.used/(1024**3), 1)}/{round(disk_usage.total/(1024**3), 1)}GB ({disk_usage.percent}%)",
+            "Disk": f"{round(disk_usage.used/(1024**3))}/{round(disk_usage.total/(1024**3))}GB ({disk_usage.percent}%)",
             "Swap": f"{used_swap}/{total_swap}GB ({swap_usage}%)",
         },
         "Network": {
@@ -618,9 +627,9 @@ def display_system_info(info):
     # Clear screen and display header
     os.system('cls' if os.name == 'nt' else 'clear')
     print(HEADER_ART)
-
+    
     max_key_length = max(len(key) for category in info.values() for key in category.keys())
-
+    
     for category, data in info.items():
         print(f"{COLOR_CATEGORY}┌─{category.upper()}{'─' * (36 - len(category))}┐{COLOR_RESET}")
         for key, value in data.items():
