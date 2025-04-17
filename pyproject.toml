@@ -15,8 +15,9 @@ license = {text = "MIT"}
 requires-python = ">=3.6"
 dependencies = [
     "psutil>=5.0",
-    "colorama>=0.4.6",
     "setuptools>=59.6.0",
+    "winreg; sys_platform == 'win32'",
+    "ctypes; sys_platform == 'win32'",
 ]
 
 [project.scripts]

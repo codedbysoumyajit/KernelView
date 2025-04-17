@@ -28,6 +28,292 @@ HEADER_ART = rf"""
 {COLOR_RESET}{COLOR_ACCENT}  Is a Powerful System Information Tool{COLOR_RESET}
 """
 
+
+def get_os_info():
+    try:
+        system = platform.system()
+        if system == "Linux":
+            # Extended Linux distribution detection
+            distro = "Linux"
+            version = platform.release()
+            
+            # Check for /etc/os-release first (modern standard)
+            if os.path.exists("/etc/os-release"):
+                with open("/etc/os-release") as f:
+                    os_release = {}
+                    for line in f:
+                        if '=' in line:
+                            key, value = line.strip().split('=', 1)
+                            os_release[key] = value.strip('"')
+                    
+                    distro = os_release.get('NAME', 'Linux')
+                    version = os_release.get('VERSION', platform.release())
+                    
+                    # Handle special cases for popular distros
+                    distro_map = {
+                        'ubuntu': 'Ubuntu',
+                        'fedora': 'Fedora',
+                        'debian': 'Debian',
+                        'arch': 'Arch Linux',
+                        'manjaro': 'Manjaro',
+                        'centos': 'CentOS',
+                        'rhel': 'Red Hat Enterprise Linux',
+                        'opensuse': 'openSUSE',
+                        'alpine': 'Alpine Linux',
+                        'kali': 'Kali Linux',
+                        'pop': 'Pop!_OS',
+                        'elementary': 'elementary OS',
+                        'zorin': 'Zorin OS',
+                        'mint': 'Linux Mint'
+                    }
+                    
+                    # Get pretty name if available
+                    pretty_name = os_release.get('PRETTY_NAME', f"{distro} {version}")
+                    
+                    # Apply distro mapping
+                    for key, value in distro_map.items():
+                        if key.lower() in distro.lower():
+                            pretty_name = pretty_name.replace(distro, value)
+                            break
+                    
+                    return pretty_name
+            
+            # Check for older /etc/lsb-release
+            if os.path.exists("/etc/lsb-release"):
+                with open("/etc/lsb-release") as f:
+                    lsb_release = {}
+                    for line in f:
+                        if '=' in line:
+                            key, value = line.strip().split('=', 1)
+                            lsb_release[key] = value.strip('"')
+                    
+                    if 'DISTRIB_DESCRIPTION' in lsb_release:
+                        return lsb_release['DISTRIB_DESCRIPTION']
+                    elif 'DISTRIB_ID' in lsb_release and 'DISTRIB_RELEASE' in lsb_release:
+                        return f"{lsb_release['DISTRIB_ID']} {lsb_release['DISTRIB_RELEASE']}"
+            
+            # Check for specific distribution files
+            distro_files = {
+                '/etc/redhat-release': 'Red Hat',
+                '/etc/debian_version': 'Debian',
+                '/etc/alpine-release': 'Alpine Linux',
+                '/etc/arch-release': 'Arch Linux',
+                '/etc/gentoo-release': 'Gentoo',
+                '/etc/slackware-version': 'Slackware'
+            }
+            
+            for file, name in distro_files.items():
+                if os.path.exists(file):
+                    with open(file) as f:
+                        return f"{name} {f.read().strip()}"
+            
+            # Fallback to generic Linux info
+            return f"Linux {version}"
+            
+        elif system == "Windows":
+            # Comprehensive Windows version mapping
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                 r"SOFTWARE\Microsoft\Windows NT\CurrentVersion") as key:
+                    product_name = winreg.QueryValueEx(key, "ProductName")[0]
+                    release_id = winreg.QueryValueEx(key, "DisplayVersion")[0]
+                    build_number = winreg.QueryValueEx(key, "CurrentBuildNumber")[0]
+                    ubr = winreg.QueryValueEx(key, "UBR")[0] if "UBR" in [x[0] for x in winreg.EnumValue(key, 0)[1]] else 0
+                    
+                    # Extended Windows version map
+                    version_map = {
+                        '10.0.22631': '11 (23H2)',
+                        '10.0.22621': '11 (22H2)',
+                        '10.0.22000': '11 (21H2)',
+                        '10.0.19045': '10 (22H2)',
+                        '10.0.19044': '10 (21H2)',
+                        '10.0.19043': '10 (21H1)',
+                        '10.0.19042': '10 (20H2)',
+                        '10.0.19041': '10 (2004)',
+                        '10.0.18363': '10 (1909)',
+                        '10.0.18362': '10 (1903)',
+                        '10.0.17763': '10 (1809)',
+                        '10.0.17134': '10 (1803)',
+                        '10.0.16299': '10 (1709)',
+                        '10.0.15063': '10 (1703)',
+                        '10.0.14393': '10 (1607)',
+                        '10.0.10586': '10 (1511)',
+                        '10.0.10240': '10 (1507)',
+                        '6.3.9600': '8.1',
+                        '6.2.9200': '8',
+                        '6.1.7601': '7 SP1',
+                        '6.1.7600': '7',
+                        '6.0.6002': 'Vista SP2',
+                        '6.0.6001': 'Vista SP1',
+                        '6.0.6000': 'Vista',
+                        '5.2.3790': 'Server 2003',
+                        '5.1.2600': 'XP',
+                        '5.0.2195': '2000'
+                    }
+                    
+                    version_key = f"{platform.version().split('.')[0]}.{platform.version().split('.')[1]}.{build_number}"
+                    friendly_name = version_map.get(version_key, platform.version())
+                    
+                    return f"{product_name} {friendly_name} (Build {build_number}.{ubr})"
+            except Exception as e:
+                return f"Windows {platform.release()} {platform.version()}"
+            
+        elif system == "Darwin":
+            # Comprehensive macOS version mapping
+            try:
+                product_version = subprocess.check_output(["sw_vers", "-productVersion"]).decode().strip()
+                
+                # Extended macOS version map
+                version_map = {
+                    '14.': 'Sonoma',
+                    '13.': 'Ventura',
+                    '12.': 'Monterey',
+                    '11.': 'Big Sur',
+                    '10.15': 'Catalina',
+                    '10.14': 'Mojave',
+                    '10.13': 'High Sierra',
+                    '10.12': 'Sierra',
+                    '10.11': 'El Capitan',
+                    '10.10': 'Yosemite',
+                    '10.9': 'Mavericks',
+                    '10.8': 'Mountain Lion',
+                    '10.7': 'Lion',
+                    '10.6': 'Snow Leopard',
+                    '10.5': 'Leopard',
+                    '10.4': 'Tiger',
+                    '10.3': 'Panther',
+                    '10.2': 'Jaguar',
+                    '10.1': 'Puma',
+                    '10.0': 'Cheetah'
+                }
+                
+                # Find matching version
+                version_name = "macOS"
+                for prefix, name in version_map.items():
+                    if product_version.startswith(prefix):
+                        version_name = f"macOS {name}"
+                        break
+                
+                # Add version details
+                build_version = subprocess.check_output(["sw_vers", "-buildVersion"]).decode().strip()
+                return f"{version_name} {product_version} (Build {build_version})"
+            except:
+                return "macOS"
+            
+        else:
+            return platform.platform()
+    except Exception:
+        return platform.platform()
+
+def get_shell():
+    try:
+        if platform.system() == "Windows":
+            # Windows shell detection
+            shell = os.environ.get('SHELL', '')
+            
+            # Check for PowerShell
+            if 'PSModulePath' in os.environ:
+                # Detect PowerShell version
+                try:
+                    ps_version = subprocess.check_output(
+                        ["powershell", "-Command", "$PSVersionTable.PSVersion.ToString()"],
+                        stderr=subprocess.DEVNULL
+                    ).decode().strip()
+                    return f"PowerShell {ps_version}"
+                except:
+                    return "PowerShell"
+            
+            # Check for Git Bash
+            if 'MINGW' in os.environ.get('MSYSTEM', '') or 'git' in os.environ.get('SHELL', '').lower():
+                return "Git Bash"
+            
+            # Check for CMD vs other Windows terminals
+            parent_process = None
+            try:
+                parent_process = psutil.Process(os.getppid()).name()
+            except:
+                pass
+                
+            if parent_process:
+                if 'cmd.exe' in parent_process.lower():
+                    return "CMD"
+                elif 'powershell.exe' in parent_process.lower():
+                    return "PowerShell"
+                elif 'bash.exe' in parent_process.lower():
+                    return "Bash"
+                elif 'zsh.exe' in parent_process.lower():
+                    return "Zsh"
+                elif 'fish.exe' in parent_process.lower():
+                    return "Fish"
+            
+            # Fallback to checking COMSPEC
+            if 'COMSPEC' in os.environ:
+                if 'cmd.exe' in os.environ['COMSPEC'].lower():
+                    return "CMD"
+            
+            return "Windows Terminal" if os.environ.get('WT_SESSION') else "Unknown Windows Shell"
+            
+        else:  # Linux, macOS, etc.
+            # Unix-like shell detection
+            shell_path = os.environ.get('SHELL', '')
+            
+            if not shell_path:
+                # Fallback method for getting shell
+                try:
+                    shell_path = subprocess.check_output(
+                        ["ps", "-p", str(os.getppid()), "-o", "comm="],
+                        stderr=subprocess.DEVNULL
+                    ).decode().strip()
+                except:
+                    pass
+            
+            if shell_path:
+                shell_name = os.path.basename(shell_path)
+                # Map common shell names
+                shell_map = {
+                    'bash': 'Bash',
+                    'zsh': 'Zsh',
+                    'fish': 'Fish',
+                    'dash': 'Dash',
+                    'ksh': 'KornShell',
+                    'tcsh': 'Tcsh',
+                    'csh': 'Csh',
+                    'sh': 'Bourne Shell',
+                    'ash': 'Almquist Shell',
+                    'mksh': 'MirBSD KornShell'
+                }
+                
+                # Get version if possible
+                version = ''
+                try:
+                    if shell_name == 'bash':
+                        version = subprocess.check_output(
+                            [shell_path, "--version"],
+                            stderr=subprocess.DEVNULL
+                        ).decode().split('\n')[0].split(' ')[3].split('(')[0]
+                    elif shell_name == 'zsh':
+                        version = subprocess.check_output(
+                            [shell_path, "--version"],
+                            stderr=subprocess.DEVNULL
+                        ).decode().split('\n')[0].split(' ')[1]
+                    elif shell_name == 'fish':
+                        version = subprocess.check_output(
+                            [shell_path, "--version"],
+                            stderr=subprocess.DEVNULL
+                        ).decode().split('\n')[0].split(' ')[2]
+                except:
+                    pass
+                
+                display_name = shell_map.get(shell_name, shell_name.capitalize())
+                return f"{display_name} {version}".strip() if version else display_name
+            
+            # Final fallback
+            return "Unknown Unix Shell"
+    except Exception:
+        return "Unknown Shell"
+
+
 def get_kernel_info():
     try:
         if platform.system() == "Linux":
@@ -431,17 +717,6 @@ def get_graphics_framework():
 
     return ", ".join(result) if result else "None detected"
 
-def get_cpu_temperature():
-    try:
-        if platform.system() == "Windows":
-            return "Use HWMonitor"
-        elif platform.system() == "Linux":
-            temp = subprocess.check_output("sensors | grep 'Package id 0'", shell=True).decode().split('+')[-1].split('°')[0].strip()
-            return f"{temp}°C"
-        elif platform.system() == "Darwin":
-            return "Use iStat Menus"
-    except Exception:
-        return "Unknown"
 
 def get_open_ports():
     open_ports = []
@@ -583,11 +858,10 @@ def get_system_info():
     
     info = {
         "System": {
-            "OS": f"{platform.system()} {platform.release()}",
-            "OS Version": platform.version(),
+            "OS": get_os_info(),
             "Kernel": get_kernel_info(),
             "Uptime": str(datetime.timedelta(seconds=int(time.time() - psutil.boot_time()))),
-            "Shell": os.path.basename(os.environ.get('SHELL', 'Unknown')),
+            "Shell": get_shell(),
             "Python": platform.python_version(),
             "Window Manager": get_window_manager(),
         },
@@ -601,7 +875,6 @@ def get_system_info():
             "Cores/Threads": f"{psutil.cpu_count(logical=False)}/{psutil.cpu_count(logical=True)}",
             "CPU Speed": f"{psutil.cpu_freq().current:.2f} MHz" if psutil.cpu_freq() else "Unknown",
             "CPU Usage": f"{psutil.cpu_percent(interval=1)}%",
-            "CPU Temp": get_cpu_temperature(),
             "GPU": get_gpu_info(),
             "VRAM": f"{used_vram}/{total_vram}MB ({vram_usage}%)" if total_vram else "Unknown",
             "RAM": f"{round(ram.used/(1024**3))}/{round(ram.total/(1024**3))}GB ({ram.percent}%)",
