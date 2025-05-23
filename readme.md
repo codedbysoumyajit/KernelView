@@ -15,7 +15,7 @@ KernelView is a modern and powerful system information tool built in Python. It 
 ## Installation
 ### Install directly from GitHub
 ```sh
-pip install git+https://github.com/Pheonix14/KernelView.git
+pip install git+https://github.com/codedbysoumyajit/KernelView.git
 ```
 
 ### Run it
